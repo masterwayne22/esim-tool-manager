@@ -166,4 +166,4 @@ tests/test_doctor.py::test_all_tools_configured PASSED               [100%]
 
 ## Design Document
 
-A complete technical architecture document covering module interactions, design patterns (Strategy, Facade), and engineering trade-offs is available at [`docs/architecture_design.pdf`](https://docs.google.com/document/d/1HOrIcy8VQgYIgsZzsONxYm5YVXQsi_V4u6iRMDs3YeM/edit?usp=sharing).
+A complete technical architecture document covering module interactions, design patterns (Strategy, Facade), and engineering trade-offs is available at [`docs/architecture_design.pdf`](https://docs.google.com/document/d/1bib4P2WFHv_zpcEKF9pYolk9kKvD09FHvEhvpsP9tyA/edit?usp=sharing).
