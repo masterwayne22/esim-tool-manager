@@ -1,122 +1,169 @@
-# eSim Automated Tool & Dependency Manager (`esim-manager`)
+# eSim Tool Manager (`esim-manager`)
 
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-GPLv3-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)]()
+An automated CLI and diagnostic utility developed for **eSim (FOSSEE, IIT Bombay)** to handle the installation, environment configuration, dependency verification, and upstream version tracking of external EDA tools (**Ngspice**, **KiCad**, and **GHDL**).
 
-An automated management suite designed for **eSim (FOSSEE, IIT Bombay)** that automates the installation, environment configuration, dependency verification, and upstream release checking of external EDA tools (**Ngspice**, **KiCad**, **GHDL**, and **Python Runtimes**).
-
----
-
-## 🎯 Features Implemented
-
-1. **System Health & Dependency Checker (`doctor`)**:
-   - Diagnoses local installations, identifies whether binaries reside in the system `PATH`, and dynamically extracts version metadata via CLI flags.
-2. **Automated Tool Installation (`install`)**:
-   - Multi-strategy installation engine supporting direct verified mirrors, native system transfer agents (`curl`), GitHub release assets, and Windows Package Manager (`winget`).
-3. **Upstream Release Tracker (`update`)**:
-   - Queries GitHub REST APIs and SourceForge release feeds to identify when newer upstream versions are available.
-4. **Automated Environment & PATH Resolution (`fix-paths`)**:
-   - Detects orphaned tool binaries and permanently configures user environment variables via the Windows Registry (`winreg`) and Linux profile configurations (`~/.bashrc`).
-5. **Persistent Event Logging (`logs`)**:
-   - Captures all system events, errors, and diagnostic traces in `~/.esim/manager.log`.
-6. **Automated Test Suite**:
-   - Includes full unit test coverage using `pytest`.
+**Author:** Krishiv Sarva  
+**Institution:** VIT Bhopal University  
+**Branch:** Computer Science & Engineering (2024–2028)  
+**Task:** Screening Task 5 — Tool Manager (eSim Semester Long Internship Autumn/Winter 2026)  
+**Repository:** Private (Access granted to `Eyantra698Sumanto`)  
 
 ---
 
-## 🏗️ Architecture Overview
+## Motivation
+
+eSim acts as an integration platform across multiple independent open-source EDA engines. In practice, students and researchers frequently encounter environment issues:
+- External tools (such as Ngspice in `C:\Spice64` or KiCad in `Program Files`) are installed on disk, but missing from the system `PATH`.
+- Lab systems in colleges often restrict administrative privileges, preventing global registry modifications.
+- Upstream archives and binary names change across releases, breaking static install scripts.
+
+This utility addresses these issues by providing a health diagnostic check (`doctor`), user-level environment variable configuration (`fix-paths`), upstream update tracking (`update`), and automated installation (`install`).
+
+---
+
+## Features Implemented
+
+The screening guidelines require meeting at least two of the five task criteria. This project implements all five:
+
+| Task 5 Requirement | Implementation Details | Key File |
+| :--- | :--- | :--- |
+| **1. Tool Installation** | Automated download, verification, and extraction of external tools (Ngspice, GHDL, KiCad). Supports native transfer agents (`curl`), GitHub release assets, and Windows Package Manager (`winget`). | `esim_manager/core/installer.py` |
+| **2. Update System** | Real-time version queries against GitHub REST APIs and SourceForge feeds to compare local versus remote releases. | `esim_manager/core/updater.py` |
+| **3. Configuration Handling** | Non-admin PATH persistence using `HKEY_CURRENT_USER\Environment` on Windows (via `winreg`) and `~/.bashrc` on Linux. | `esim_manager/core/environment.py` |
+| **4. Dependency Checker** | Comprehensive system diagnostics scanning runtime compilers, simulation engines, binary availability, and version flags. | `esim_manager/core/doctor.py` |
+| **5. User Interface & Logs** | Formatted terminal output using `rich` tables and persistent logging to `~/.esim/manager.log`. | `esim_manager/cli.py`<br>`esim_manager/utils/logger.py` |
+
+---
+
+## Project Structure
 
 ```
 esim-tool-manager/
 ├── esim_manager/
 │   ├── __init__.py
-│   ├── cli.py                     # Typer CLI Entrypoint & Rich Terminal UI
-│   ├── config.py                  # Supported tools database & probing paths
+│   ├── cli.py                     # Typer CLI application & terminal UI
+│   ├── config.py                  # Tool definitions, probing paths & URLs
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── doctor.py              # Diagnostic matrix engine
-│   │   ├── environment.py         # Persistent PATH & Registry manager
-│   │   ├── installer.py           # Multi-strategy installer & extractor
+│   │   ├── doctor.py              # System dependency diagnostics
+│   │   ├── environment.py         # PATH and Windows Registry manager
+│   │   ├── installer.py           # Multi-strategy tool installer
 │   │   └── updater.py             # GitHub & SourceForge upstream APIs
 │   └── utils/
-│       └── logger.py              # Centralized logging subsystem
+│       └── logger.py              # File-based logging (~/.esim/manager.log)
 ├── tests/
-│   ├── conftest.py                # Test environment path resolver
-│   └── test_doctor.py             # System doctor unit tests
+│   ├── conftest.py                # Pytest path configuration
+│   └── test_doctor.py             # Unit tests
 ├── docs/
-│   └── architecture_design.md     # Full System Architecture Document
-├── pyproject.toml                 # Packaging configuration
-├── requirements.txt
+│   ├── architecture_design.md     # Architecture & technical design specification
+│   └── architecture_design.pdf    # PDF submission document
+├── pyproject.toml                 # Package configuration
+├── requirements.txt               # Dependencies
 └── README.md
 ```
 
 ---
 
-## 🚀 Quickstart & Installation
+## Setup and Installation
 
-### 1. Clone the Repository
-```powershell
-git clone <your-repo-link>
-cd esim-tool-manager
-```
+### Prerequisites
+- Python 3.10 or newer (tested on Python 3.14 on Windows 11)
+- Git
 
-### 2. Set Up Virtual Environment & Dependencies
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+### Installation Steps
 
-*(Or install directly: `pip install rich requests typer pytest`)*
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/masterwayne22/esim-tool-manager.git
+   cd esim-tool-manager
+   ```
+
+2. Create and activate a virtual environment:
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   ```
+
+3. Install project dependencies:
+   ```powershell
+   pip install -r requirements.txt
+   ```
 
 ---
 
-## 💻 CLI Usage Guide
+## Usage
 
-### 1. Run System Diagnostics
-Scans your system and displays an interactive health matrix:
+### 1. Run Dependency Diagnostics (`doctor`)
+Scans the local environment, checks whether tools reside in `PATH`, and extracts installed versions:
 ```powershell
 python -m esim_manager.cli doctor
 ```
 
-### 2. Auto-Fix Missing Environment PATHs
-Automatically configures installed tool paths in the Windows Registry:
+Example output:
+```text
+eSim Dependency Health Matrix
++-------------------+---------------------------+-------------+-----------------+----------+-------------------------+
+| Category          | Component                 | Status      | In PATH?        | Version  | Path Location           |
++-------------------+---------------------------+-------------+-----------------+----------+-------------------------+
+| Core Runtime      | Python Environment        | Installed   | Yes             | 3.14.2   | C:\Users\...\python.exe |
+| Simulation Engine | Ngspice Circuit Simulator | Installed   | Yes             | 34       | C:\Users\...\Spice64    |
+| Schematic & PCB   | KiCad EDA Suite           | Missing     | -               | N/A      | Not found               |
+| Digital Engine    | GHDL (VHDL Simulator)     | Missing     | -               | N/A      | Not found               |
++-------------------+---------------------------+-------------+-----------------+----------+-------------------------+
+```
+
+### 2. Auto-Configure Environment Variables (`fix-paths`)
+Detects installed tools that are missing from `PATH` and appends their directories to the Windows User Registry (`HKEY_CURRENT_USER\Environment\Path`) or `~/.bashrc`:
 ```powershell
 python -m esim_manager.cli fix-paths
 ```
+*Note: Uses user-space registry entries so administrative privileges are not required.*
 
-### 3. Check for Upstream Updates
-Compares locally installed tool versions with upstream repositories:
+### 3. Check for Upstream Updates (`update`)
+Queries upstream release APIs to check if newer stable releases exist:
 ```powershell
 python -m esim_manager.cli update
 ```
 
-### 4. Install an External Tool
-Installs verified dependencies with progress tracking:
+### 4. Install Dependencies (`install`)
+Downloads and configures external tools directly:
 ```powershell
 python -m esim_manager.cli install ngspice
 ```
 
-### 5. View Diagnostic Logs
-Displays recent actions and error logs:
+### 5. Inspect Event Logs (`logs`)
+Displays recent actions and diagnostic logs stored in `~/.esim/manager.log`:
 ```powershell
 python -m esim_manager.cli logs
 ```
 
-### 6. Run Automated Test Suite
+---
+
+## Running Unit Tests
+
+Unit tests are written using `pytest` to verify the diagnostic dictionary structure and tool configuration schemas:
+
 ```powershell
 python -m pytest -v
 ```
 
+Output:
+```text
+tests/test_doctor.py::test_system_doctor_structure PASSED            [ 50%]
+tests/test_doctor.py::test_all_tools_configured PASSED               [100%]
+
+============================== 2 passed ==============================
+```
+
 ---
 
-## 🎥 Demonstration Video
-- **Link:** [YouTube Unlisted Demo Video](https://youtu.be/your-video-link-here)
-*(A 5-minute walkthrough demonstrating system diagnostics, path fixing, and architecture overview).*
+## Demonstration Video
+
+- **Video Link:** [YouTube Unlisted Walkthrough](https://youtu.be/your-video-link-here)
+*(A 5-minute screencast demonstrating CLI commands, path auto-configuration, and code architecture).*
 
 ---
 
-## 📄 License & Attribution
-Developed for the **FOSSEE eSim Semester Long Internship Screening Task (Autumn/Winter 2026)**, IIT Bombay.
+## Design Document
+
+A complete technical architecture document covering module interactions, design patterns (Strategy, Facade), and engineering trade-offs is available at [`docs/architecture_design.pdf`](docs/architecture_design.pdf).

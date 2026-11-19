@@ -1,119 +1,173 @@
-# System Architecture & Design Document
-## Automated Tool and Dependency Manager for eSim EDA Suite
-**Candidate:** Screening Task 5 Submission  
+# System Architecture & Technical Design Document
+# Automated Tool and Dependency Manager for eSim EDA Suite (`esim-manager`)
+
+**Candidate:** Krishiv Sarva  
+**Branch & Year:** Computer Science & Engineering, [2024-2028]  
+**Institution:** VIT BHOPAL UNIVERSITY  
 **Program:** eSim Semester-Long Internship (Autumn/Winter 2026), FOSSEE, IIT Bombay  
+**Target Screening Task:** Task 5: Tool Manager (CSE and related fields)  
+**Repository Link:** https://github.com/masterwayne22/esim-tool-manager (Private)  
 
 ---
 
-## 1. Executive Summary & Problem Statement
+## 1. Executive Summary & Problem Context
 
-### 1.1 Context
-eSim is an open-source EDA tool developed by FOSSEE, IIT Bombay, for circuit design, simulation, and PCB fabrication. Unlike monolithic EDA platforms, eSim functions as an orchestrator that integrates multiple best-in-class open-source tools:
-- **KiCad** for schematic capture and PCB layout
-- **Ngspice** for mixed-signal analog simulation
-- **GHDL** for VHDL digital simulation
-- **Makerchip / Verilator** for Verilog simulation
-- **Python / Matplotlib** for waveform plotting and scripting
+### 1.1 Background
+**eSim** is an open-source Electronic Design Automation (EDA) suite developed by the FOSSEE project at IIT Bombay. It enables schematic capture, analog/digital/mixed-signal circuit simulation, and PCB layout creation. 
 
-### 1.2 The Core Problem
-Because eSim relies on an ecosystem of disparate external tools, user onboarding and maintenance are notoriously prone to environment friction:
-1. **Broken `PATH` Variables**: Users frequently install tools (e.g., Ngspice in `C:\Spice64` or KiCad in `Program Files`), but eSim cannot invoke them because the binary directory was not appended to the system environment variables.
-2. **Version Incompatibilities**: Silent API shifts between tool releases (e.g., KiCad 7 vs 8 vs 9, or Ngspice rework releases) lead to unexpected simulation crashes.
-3. **Platform Drift**: Dependency resolution differs significantly between Windows environments (which rely on registry keys and manual ZIP extractions) and Linux distributions (which rely on package managers like `apt` and shell profiles).
+Unlike monolithic commercial EDA packages, eSim functions as an integration platform coordinating multiple specialized open-source tools:
+- **KiCad (eSchema & Pcbnew):** Schematic capture, netlist generation, and PCB layout.
+- **Ngspice:** Mixed-signal and analog SPICE engine.
+- **GHDL:** IEEE-compliant VHDL simulation engine.
+- **Verilator / Makerchip:** Verilog digital synthesis and simulation interfaces.
+- **Python / Matplotlib:** Scripting interface, waveform plotting, and data post-processing.
 
-### 1.3 Solution
-The **`esim-manager`** provides a unified diagnostic and management suite modeled after developer-grade tools (such as `flutter doctor` and `rustup`). It introduces automated health scanning, safe environment path persistence, automated multi-strategy installation, upstream release tracking, and comprehensive event logging.
+### 1.2 The Problem
+Because eSim operates as an orchestration layer over heterogeneous sub-tools, installation and maintenance present significant points of failure for students and researchers:
+1. **The PATH Resolution Problem:** Users frequently have tool binaries present on disk (e.g., `C:\Spice64\bin\ngspice.exe` or `C:\Program Files\KiCad\bin`), yet eSim fails with *"Command not found"* because directory paths were not registered in system environment variables.
+2. **Academic Lab Administrative Restrictions:** Many student machines and college lab workstations restrict administrative access (`HKEY_LOCAL_MACHINE`). Standard installers fail when attempting global machine modifications.
+3. **Silent Upstream API & Format Drift:** Tools frequently update version flags, binary names, and archive packaging formats (e.g., Ngspice transitioning from `.zip` to `.7z`), breaking static installation scripts.
+4. **Cross-Platform Divergence:** Dependency resolution, binary paths, and environment variable registries differ fundamentally between Windows (`winreg`) and Linux (`~/.bashrc`).
+
+### 1.3 Proposed Solution
+The **`esim-manager`** is an automated system diagnostics and lifecycle management suite. Designed with inspiration from developer utilities such as `flutter doctor` and `rustup`, it provides:
+- Automated system health inspection and dependency discovery.
+- Safe, non-destructive, non-admin user-level environment PATH persistence.
+- Multi-strategy binary acquisition and extraction.
+- Upstream release tracking via public REST APIs.
+- Comprehensive local logging for auditability and error diagnostics.
 
 ---
 
-## 2. High-Level System Architecture
+## 2. System Architecture & Component Interaction
 
-The tool is organized into a modular, layered architecture to ensure separation of concerns and cross-platform extensibility:
+The architecture follows a strict **Layered Architectural Pattern** to decouple the user presentation interface from core diagnostic logic and operating-system-level APIs:
 
 ```
-+-------------------------------------------------------------------+
-|                        Presentation Layer                         |
-|      Typer CLI Interface  |  Rich Terminal UI (Tables, Spinners)   |
-+-------------------------------------------------------------------+
-                                  |
-                                  v
-+-------------------------------------------------------------------+
-|                        Orchestration Layer                        |
-|  [doctor.py]      [installer.py]     [environment.py]  [updater.py]
-|  Diagnostics       Multi-Strategy     Registry / PATH   Upstream API
-+-------------------------------------------------------------------+
-                                  |
-                                  v
-+-------------------------------------------------------------------+
-|                     Platform Abstraction Layer                    |
-|       Windows (winreg / curl.exe / winget)   |   Linux (apt / sh) |
-+-------------------------------------------------------------------+
-                                  |
-                                  v
-+-------------------------------------------------------------------+
-|                         External Ecosystem                        |
-|    Ngspice Engine   |   KiCad Suite   |   GHDL   |   Python Core  |
-+-------------------------------------------------------------------+
++-------------------------------------------------------------+
+|                      PRESENTATION LAYER                     |
+|    Typer CLI Interface  |  Rich Terminal Formatting         |
+|         (doctor, fix-paths, update, install, logs)          |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                     ORCHESTRATION LAYER                     |
+|  [SystemDoctor]       [EnvironmentManager]  [ToolInstaller] |
+|   Diagnostics          Registry / PATH       Multi-Strategy |
+|  [UpdateManager]      [CentralLogger]                       |
+|   Upstream REST APIs   Audit Trail                          |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                 PLATFORM ABSTRACTION LAYER                  |
+|     Windows (winreg, curl.exe)   |   Linux (sh, .bashrc)    |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                      MANAGED EDA TOOLS                      |
+|   Ngspice Engine  |  KiCad EDA Suite  |  GHDL  |  Python    |
++-------------------------------------------------------------+
 ```
 
 ---
 
-## 3. Module Breakdown & Design Patterns
+## 3. Data Flow & Algorithmic Workflows
 
-### 3.1 Dependency Checker (`core/doctor.py`)
-- **Design Pattern**: Inspector / Facade
-- **Functionality**:
-  1. Inspects the active `os.environ["PATH"]` using `shutil.which`.
-  2. If the binary is not found in `PATH`, it iteratively probes default operating-system installation directories (e.g., `C:\Spice64\bin`, `C:\Program Files\KiCad`, and `~/.esim/tools/`).
-  3. Uses asynchronous/safe subprocess execution to invoke tool version flags (`-v`, `--version`) and extracts semantic version patterns via regular expressions.
-  4. Returns a normalized dictionary containing installation status, PATH discovery, version, and category.
+### 3.1 Diagnostic Flow (`esim doctor`)
 
-### 3.2 Environment Manager (`core/environment.py`)
-- **Functionality**:
-  - Resolves orphaned tool directories and writes them permanently into user environment configurations.
-  - **On Windows**: Leverages Python's native `winreg` module to read and write to `HKEY_CURRENT_USER\Environment\Path`. It ensures directory deduplication and dynamically updates the current runtime process environment (`os.environ["PATH"]`) without requiring a system reboot.
-  - **On Linux**: Safely inspects and appends `export PATH="$PATH:<directory>"` to `~/.bashrc`.
+```
+[Start: User runs 'esim doctor']
+               │
+               ▼
+   [1. Probe System PATH via shutil.which]
+               │
+       ┌───────┴───────┐
+       ▼               ▼
+   [Found]          [Not Found]
+       │               │
+       │               ▼
+       │     [2. Probe Default Folders]
+       │     (C:\Spice64, Program Files)
+       │               │
+       │         ┌─────┴─────┐
+       │         ▼           ▼
+       │      [Found]    [Not Found]
+       │         │           │
+       ▼         ▼           ▼
+   [3. Invoke Version]  [Status: MISSING]
+   [4. Regex Parse]          │
+       │                     │
+       └─────────┬───────────┘
+                 │
+                 ▼
+[Render Rich Health Matrix Table]
+```
 
-### 3.3 Multi-Strategy Tool Installer (`core/installer.py`)
-- **Design Pattern**: Strategy Pattern
-- **Functionality**:
-  Because download architectures differ across open-source vendors, the installer implements multiple strategies:
-  - **Strategy A (Native Transfer Agent)**: Employs `curl.exe -L` with follow-redirects and user-agent impersonation to bypass mirror redirection issues.
-  - **Strategy B (Package Manager Integration)**: Integrates directly with the Windows Package Manager (`winget install --id KiCad.KiCad`) for major software suites.
-  - **Strategy C (GitHub Releases API)**: Direct asset streaming for developer utilities.
-  - **Payload Verification**: Validates file size thresholds and verifies archive signatures using Python's `zipfile` module before attempting disk extraction.
+### 3.2 Non-Destructive Environment Resolution Flow (`esim fix-paths`)
 
-### 3.4 Upstream Release Tracker (`core/updater.py`)
-- **Functionality**:
-  - Interrogates upstream REST APIs (GitHub Releases API and SourceForge Release Feeds).
-  - Normalizes semantic versions and displays real-time comparison tables so users know whether security or feature upgrades are available.
-
-### 3.5 Centralized Logger (`utils/logger.py`)
-- **Functionality**:
-  - All operations, diagnostic warnings, subprocess return codes, and exceptions are appended with timestamps to `~/.esim/manager.log`.
-  - Accessible directly in the console via `python -m esim_manager.cli logs`.
+```
+[Identify Installed Tool missing from PATH]
+                    │
+                    ▼
+   [Prompt User Confirmation: y/n]
+                    │ (if Yes)
+         ┌──────────┴──────────┐
+         ▼                     ▼
+     [Windows]              [Linux]
+         │                     │
+         ▼                     ▼
+[Open HKCU\Environment]  [Inspect ~/.bashrc]
+[Deduplicate Entries]    [Check duplication]
+[Append with ';']        [Append export PATH]
+[Write REG_EXPAND_SZ]    [Save to disk]
+         │                     │
+         └──────────┬──────────┘
+                    │
+                    ▼
+[Update os.environ & Commit to manager.log]
+```
 
 ---
 
-## 4. Requirement Verification Matrix
+## 4. Software Engineering Principles & Design Patterns
 
-| Official Screening Requirement | Implemented Feature | Implementation File | Status |
-| :--- | :--- | :--- | :--- |
-| **1. Tool Installation Management** | Multi-strategy automated download & extraction with integrity verification | `esim_manager/core/installer.py` | **Complete** |
-| **2. Update and Upgrade System** | Real-time upstream semver comparison via GitHub / SourceForge APIs | `esim_manager/core/updater.py` | **Complete** |
-| **3. Configuration Handling** | Windows Registry (`winreg`) & Linux shell persistence for PATH variables | `esim_manager/core/environment.py` | **Complete** |
-| **4. Dependency Checker** | Comprehensive `doctor` matrix diagnosing runtimes, engines, and EDA tools | `esim_manager/core/doctor.py` | **Complete** |
-| **5. User Interface & Logs** | Modern terminal UI with `rich` tables and persistent logging in `~/.esim/` | `esim_manager/cli.py` & `logger.py` | **Complete** |
-| **Bonus: Cross-Platform Support** | Operating-system abstraction supporting both Windows and Linux paths | `esim_manager/config.py` | **Complete** |
-| **Bonus: Test Automation** | Automated test suite verifying diagnostic matrix and configuration dictionaries | `tests/test_doctor.py` | **Complete** |
+### 4.1 SOLID Principles Adherence
+- **Single Responsibility Principle (SRP):** Each module handles exactly one operational domain. `SystemDoctor` only inspects; `EnvironmentManager` only manages environment variables; `ToolInstaller` only acquires payloads.
+- **Open/Closed Principle (OCP):** Supported tools are defined in a centralized data dictionary (`TOOLS_CONFIG` in `config.py`). Adding a new tool (e.g., Verilator or GTKWave) requires zero changes to core diagnostic or installation logic.
+- **Dependency Inversion / Strategy Pattern:** The `ToolInstaller` implements distinct acquisition strategies based on vendor platform constraints without coupling the caller to the underlying protocol.
+
+### 4.2 Key Engineering Design Choices
+1. **User-Space Registry Manipulation (`HKEY_CURRENT_USER`):**
+   Standard Windows installers write to `HKEY_LOCAL_MACHINE`, requiring Administrator privileges. By targeting `HKEY_CURRENT_USER\Environment`, `esim-manager` allows students on restricted lab PCs to install and configure tools without requiring elevation.
+2. **Subprocess Isolation & Safe Execution:**
+   When extracting tool versions (`ngspice -v`, `kicad --version`), subprocess calls are bounded by hard timeouts (`timeout=5`) and run with detached standard output buffers. This prevents zombie processes or terminal freezing if an external binary stalls.
+3. **Resilient Payload Verification:**
+   Downloaded archives undergo byte-size threshold checks and zip header verification (`zipfile.is_zipfile`) before extraction, preventing partial or corrupted payloads from polluting local tool directories.
 
 ---
 
-## 5. Testing & Verification
+## 5. Requirement Verification & Mapping Matrix
 
-Automated testing was conducted using `pytest`. The test suite validates:
-1. Schema integrity of the diagnostic engine dictionary (`installed`, `in_path`, `version`, `category`).
-2. Completeness of the tools configuration database (`ngspice`, `kicad`, `ghdl`, `python`).
+The official screening guidelines mandate fulfilling **at least 2** of the screening requirements. The prototype meets **all 5 requirements** plus optional criteria:
+
+| Official Task 5 Requirement | Implementation in `esim-manager` | File Reference | Status |
+| :--- | :--- | :--- | :---: |
+| **1. Tool Installation Management** | Multi-strategy automated download, archive verification, and directory extraction for external EDA tools. | `esim_manager/core/installer.py` | **Complete** |
+| **2. Update and Upgrade System** | Dynamic query engine polling GitHub REST APIs and SourceForge release feeds to identify newer upstream versions. | `esim_manager/core/updater.py` | **Complete** |
+| **3. Configuration Handling** | Automated path discovery and persistent environment variable configuration via `winreg` and shell profiles. | `esim_manager/core/environment.py` | **Complete** |
+| **4. Dependency Checker** | Comprehensive system health engine diagnosing compilers, runtimes, simulators, and environment paths. | `esim_manager/core/doctor.py` | **Complete** |
+| **5. User Interface & Action Logs** | Rich Terminal UI (tables, colored status badges, prompt confirmations) + persistent file logging (`manager.log`). | `esim_manager/cli.py`<br>`esim_manager/utils/logger.py` | **Complete** |
+| **Optional: Cross-Platform Support** | Operating-system abstraction supporting Windows and Linux directory structures and shells. | `esim_manager/config.py` | **Complete** |
+| **Code Quality: Automated Tests** | Unit test suite verifying diagnostic matrix output and dictionary configurations with `pytest`. | `tests/test_doctor.py` | **Complete** |
+
+---
+
+## 6. Verification and Test Results
+
+The suite was verified using automated unit testing via `pytest`:
 
 ```powershell
 (venv) PS C:\Users\Lenovo\esim-tool-manager> python -m pytest -v
@@ -129,10 +183,20 @@ tests/test_doctor.py::test_all_tools_configured PASSED                   [100%]
 ============================== 2 passed in 4.38s ==============================
 ```
 
+### Manual Acceptance Testing
+1. **Fresh PC Scan:** Diagnosed clean system state correctly identifying missing external dependencies.
+2. **Extraction & Installation:** Acquired and placed `ngspice-34` executable suite inside user tool tree (`~/.esim/tools/ngspice/Spice64/bin`).
+3. **Environment Persistence:** Successfully registered tool binary in `HKEY_CURRENT_USER\Environment\Path`; confirmed persistence across new terminal sessions.
+4. **Upstream Release Query:** Queried live GitHub and SourceForge APIs, successfully returning remote release versions.
+
 ---
 
-## 6. Conclusion & Integration Roadmap for eSim
+## 7. Future Roadmap & eSim Core Integration
 
-The **`esim-manager`** prototype successfully fulfills all screening criteria for Task 5. Its modular structure allows seamless integration into the upcoming eSim 2.6/3.0 core distributions:
-- Can be packaged directly with PyInstaller as a standalone single-binary utility (`esim-manager.exe`).
-- Can serve as a pre-flight check executed whenever a user opens the eSim GUI.
+The modular design of `esim-manager` allows straightforward integration into future eSim distributions:
+1. **PyInstaller Compilation:** Package `esim-manager` into a standalone, zero-dependency executable (`esim-manager.exe`) bundled with the eSim installer.
+2. **eSim GUI Pre-Flight Check:** Integrate `SystemDoctor` into eSim's PyQt startup sequence to display a visual configuration dialog if any prerequisite tool becomes unlinked or corrupted.
+3. **Automated Library Updater:** Expand the updater module to synchronize KiCad symbol libraries (`.kicad_sym`) and Ngspice device models directly from FOSSEE repository mirrors.
+
+---
+*Report prepared for the FOSSEE EDA Team, Indian Institute of Technology Bombay (IIT Bombay).*
