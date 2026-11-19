@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esim-manager"
+version = "1.0.0"
+description = "Automated Tool and Dependency Manager for eSim EDA Suite"
+requires-python = ">=3.10"
+dependencies = [
+    "rich",
+    "requests",
+    "typer",
+]
+
+[project.scripts]
+esim-manager = "esim_manager.cli:app"
