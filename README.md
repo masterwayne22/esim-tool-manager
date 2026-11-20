@@ -159,7 +159,7 @@ tests/test_doctor.py::test_all_tools_configured PASSED               [100%]
 
 ## Demonstration Video
 
-- **Video Link:** [YouTube Unlisted Walkthrough](https://youtu.be/your-video-link-here)
+- **Video Link:** [YouTube Unlisted Walkthrough](https://www.loom.com/share/f438d94ca70b4146b1e628a50e598f9b)
 *(A 5-minute screencast demonstrating CLI commands, path auto-configuration, and code architecture).*
 
 ---
